@@ -41,7 +41,10 @@ class TimerViewModel: ObservableObject {
     }
 
     func start() {
-        isRunning = true
+        DispatchQueue.main.async {
+            self.isRunning = true
+        }
+        
         timer = Timer.publish(every: 1, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
@@ -59,7 +62,9 @@ class TimerViewModel: ObservableObject {
     }
 
     func pause() {
-        isRunning = false
+        DispatchQueue.main.async {
+            self.isRunning = false
+        }
         timer?.cancel()
     }
 
@@ -70,11 +75,15 @@ class TimerViewModel: ObservableObject {
     }
 
     func finish() {
-        isRunning = false
-        secondsRemaining = 0
+        DispatchQueue.main.async {
+            self.isRunning = false
+            self.secondsRemaining = 0
+            self.onTimerFinished?()
+        }
+        
         timer?.cancel()
-        NSSound(named: .init("Glass"))?.play() // sound Property
-        onTimerFinished?()
+        NSSound(named: .init("Glass"))?.play()
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             self.secondsRemaining = self.totalSeconds
         }
@@ -82,8 +91,10 @@ class TimerViewModel: ObservableObject {
 
     func beginEditing() {
         pause()
-        editText = ""
-        isEditing = true
+        DispatchQueue.main.async {
+            self.editText = ""
+            self.isEditing = true
+        }
     }
 
     func commitEdit() {

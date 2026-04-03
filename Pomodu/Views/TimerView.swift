@@ -136,12 +136,21 @@ struct TimeEntryField: View {
                 .onExitCommand { vm.isEditing = false }
                 .onChange(of: vm.editText) { _, newValue in
                     let digits = newValue.filter { $0.isNumber }
-                    vm.editText = String(digits.prefix(6))
+                    let filtered = String(digits.prefix(6))
+                    
+                    // Only update if it's actually different to prevent unnecessary refreshes
+                    if newValue != filtered {
+                        DispatchQueue.main.async {
+                            vm.editText = filtered
+                        }
+                    }
                 }
         }
         .onAppear {
-            isFocused = true
-            isBlinking = false
+            DispatchQueue.main.async {
+                isFocused = true
+                isBlinking = false
+            }
         }
     }
 }

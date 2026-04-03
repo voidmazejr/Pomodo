@@ -10,6 +10,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let timerViewModel = TimerViewModel()
     private var cancellable: AnyCancellable?
     private var localKeyMonitor: Any?
+    private var globalKeyMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
@@ -17,22 +18,49 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         observeTimer()
         setupTimerFinishedCallback()
         setupKeyShortcut()
+        requestAccessibilityIfNeeded()
+    }
+    
+    func requestAccessibilityIfNeeded() {
+        let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue(): true] as CFDictionary
+        AXIsProcessTrustedWithOptions(options)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         if let monitor = localKeyMonitor {
             NSEvent.removeMonitor(monitor)
         }
+        if let monitor = globalKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
     }
 
     func setupKeyShortcut() {
+        
+        let handleGlobalPress: (NSEvent) -> Void = { event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if flags == [.control, .option] && event.charactersIgnoringModifiers == "p" {
+                DispatchQueue.main.async {
+                    self.openPopoverWithFocus()
+                }
+            }
+        }
+
+        // 2. Local Monitor (Works when app is active)
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Handle Cmd + ,
             if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "," {
                 self.toggleSettings()
-                return nil
+                return nil // Swallow the event
             }
+            
+            // Also check for the global shortcut here so it works while app is focused
+            handleGlobalPress(event)
             return event
         }
+
+        // 3. Global Monitor (Works when app is in background)
+        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: handleGlobalPress)
     }
 
     func setupStatusItem() {
@@ -162,4 +190,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
         statusItem?.button?.isHighlighted = false
     }
+    
+    func openPopoverWithFocus() {
+        guard let button = statusItem?.button else { return }
+        
+        if popover.isShown {
+            // If it's open, close it (Toggle OFF)
+            popover.performClose(nil)
+            button.isHighlighted = false
+        } else {
+            // If it's closed, open it (Toggle ON)
+            popover.show(
+                relativeTo: button.bounds,
+                of: button,
+                preferredEdge: .minY
+            )
+            button.isHighlighted = true
+            
+            // Ensure keyboard focus works
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.popover.contentViewController?.view.window?.makeKey()
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
+    }
+    
 }
