@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 enum Tab {
     case timer
@@ -8,10 +9,16 @@ enum Tab {
 struct ContentView: View {
     @State private var currentTab: Tab = .timer
     var timerViewModel: TimerViewModel
+    var appDelegate: AppDelegate
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderView(currentTab: $currentTab)
+            HeaderView(
+                currentTab: $currentTab,
+                onSettingsTapped: {
+                    appDelegate.toggleSettings()
+                }
+            )
 
             Divider()
                 .background(Color.gray.opacity(0.3))
@@ -23,7 +30,7 @@ struct ContentView: View {
                 TodoView()
             }
         }
-        .frame(width: 260, height: 320) // Change this aswell for size (rest in AppDelegate -> setupPopover)
+        .frame(width: 260, height: 320)
         .background(Color(hex: "323235"))
         .focusable(false)
     }

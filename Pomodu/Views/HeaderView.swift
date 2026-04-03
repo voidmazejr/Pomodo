@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HeaderView: View {
     @Binding var currentTab: Tab
+    var onSettingsTapped: () -> Void
 
     var body: some View {
         HStack(alignment: .center) {
@@ -30,7 +31,7 @@ struct HeaderView: View {
                     .frame(height: 14)
                     .background(Color.gray.opacity(0.4))
 
-                Button(action: {}) {
+                Button(action: { onSettingsTapped() }) {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.gray)

@@ -6,14 +6,33 @@ import Combine
 class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var statusItem: NSStatusItem?
     var popover = NSPopover()
+    var settingsWindow: NSWindow?
     let timerViewModel = TimerViewModel()
     private var cancellable: AnyCancellable?
+    private var localKeyMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
         setupPopover()
         observeTimer()
         setupTimerFinishedCallback()
+        setupKeyShortcut()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        if let monitor = localKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+
+    func setupKeyShortcut() {
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "," {
+                self.toggleSettings()
+                return nil
+            }
+            return event
+        }
     }
 
     func setupStatusItem() {
@@ -34,8 +53,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.delegate = self
         let container = try! ModelContainer(for: Task.self)
         popover.contentViewController = NSHostingController(
-            rootView: ContentView(timerViewModel: timerViewModel)
-                .modelContainer(container)
+            rootView: ContentView(
+                timerViewModel: timerViewModel,
+                appDelegate: self
+            )
+            .modelContainer(container)
         )
         popover.contentViewController?.view.setFrameSize(
             NSSize(width: 260, height: 320)
@@ -79,22 +101,52 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-
-    @objc func toggleTimer() {
-        if timerViewModel.isRunning {
-            timerViewModel.pause()
-        } else {
-            timerViewModel.start()
+    @objc func toggleSettings() {
+        if let window = settingsWindow, window.isVisible {
+            window.orderOut(nil)
+            settingsWindow = nil
+            popover.behavior = .transient
+            return
         }
-    }
 
-    @objc func resetTimer() {
-        timerViewModel.stop()
+        popover.behavior = .applicationDefined
+
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 400),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+
+        panel.isFloatingPanel = true
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.isMovableByWindowBackground = true
+        panel.contentViewController = NSHostingController(
+            rootView: SettingsView()
+        )
+        panel.setContentSize(NSSize(width: 300, height: 400))
+        // panel.center() // works but its not true center
+        // Actual true center
+        if let screen = NSScreen.main {
+            let x = (screen.frame.width - 300) / 2
+            let y = (screen.frame.height - 400) / 2
+            panel.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+        panel.orderFront(nil)
+        settingsWindow = panel
     }
 
     @objc func togglePopover() {
         guard let button = statusItem?.button else { return }
         if popover.isShown {
+            if let window = settingsWindow, window.isVisible {
+                window.orderOut(nil)
+                settingsWindow = nil
+                popover.behavior = .transient
+            }
             popover.performClose(nil)
             button.isHighlighted = false
         } else {
