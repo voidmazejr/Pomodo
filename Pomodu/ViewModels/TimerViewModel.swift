@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import AppKit
 
 class TimerViewModel: ObservableObject {
     @Published var secondsRemaining: Int = 25 * 60
@@ -8,6 +9,7 @@ class TimerViewModel: ObservableObject {
     @Published var editText: String = ""
 
     var totalSeconds: Int = 25 * 60
+    var onTimerFinished: (() -> Void)?
     private var timer: AnyCancellable?
 
     var displayTime: String {
@@ -15,7 +17,7 @@ class TimerViewModel: ObservableObject {
         let minutes = (secondsRemaining % 3600) / 60
         let seconds = secondsRemaining % 60
         if hours > 0 {
-            return String(format: "%02dh:%02dm", hours, minutes) // edit this for space fix
+            return String(format: "%02dh\u{2009}%02dm", hours, minutes)
         } else {
             return String(format: "%02d:%02d", minutes, seconds)
         }
@@ -46,8 +48,12 @@ class TimerViewModel: ObservableObject {
                 guard let self else { return }
                 if self.secondsRemaining > 0 {
                     self.secondsRemaining -= 1
+                    // open popover at 3 seconds remaining
+                    if self.secondsRemaining <= 3 {
+                        self.onTimerFinished?()
+                    }
                 } else {
-                    self.stop()
+                    self.finish()
                 }
             }
     }
@@ -61,6 +67,17 @@ class TimerViewModel: ObservableObject {
         isRunning = false
         secondsRemaining = totalSeconds
         timer?.cancel()
+    }
+
+    func finish() {
+        isRunning = false
+        secondsRemaining = 0
+        timer?.cancel()
+        NSSound(named: .init("Glass"))?.play() // sound Property
+        onTimerFinished?()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            self.secondsRemaining = self.totalSeconds
+        }
     }
 
     func beginEditing() {

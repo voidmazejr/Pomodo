@@ -13,6 +13,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         setupStatusItem()
         setupPopover()
         observeTimer()
+        setupTimerFinishedCallback()
     }
 
     func setupStatusItem() {
@@ -21,13 +22,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             button.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
             button.title = "25:00"
             button.alignment = .center
-            button.action = #selector(togglePopover)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.action = #selector(handleClick)
             button.target = self
         }
     }
 
     func setupPopover() {
-        popover.contentSize = NSSize(width: 260, height: 320) // default W:260, H:340
+        popover.contentSize = NSSize(width: 260, height: 320)
         popover.behavior = .transient
         popover.delegate = self
         let container = try! ModelContainer(for: Task.self)
@@ -47,11 +49,47 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     guard let self else { return }
                     let time = self.timerViewModel.displayTime
                     self.statusItem?.button?.title = time
-                    // wider when in hh:mm mode, tighter when mm:ss
                     let isHourMode = self.timerViewModel.secondsRemaining >= 3600
                     self.statusItem?.length = isHourMode ? 54 : 42
                 }
             }
+    }
+
+    func setupTimerFinishedCallback() {
+        timerViewModel.onTimerFinished = { [weak self] in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                if !self.popover.isShown {
+                    self.togglePopover()
+                }
+            }
+        }
+    }
+
+    @objc func handleClick(sender: NSStatusBarButton) {
+        let event = NSApp.currentEvent!
+        if event.type == .rightMouseUp {
+            if timerViewModel.isRunning {
+                timerViewModel.pause()
+            } else {
+                timerViewModel.start()
+            }
+        } else {
+            togglePopover()
+        }
+    }
+
+
+    @objc func toggleTimer() {
+        if timerViewModel.isRunning {
+            timerViewModel.pause()
+        } else {
+            timerViewModel.start()
+        }
+    }
+
+    @objc func resetTimer() {
+        timerViewModel.stop()
     }
 
     @objc func togglePopover() {
